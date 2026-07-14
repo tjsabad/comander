@@ -68,18 +68,41 @@ export class ScriptListProvider implements vscode.TreeDataProvider<ScriptItem> {
    * Get children for hierarchical tree rendering
    * Requirements: 1.2, 1.5
    * 
-   * Root level: project nodes
-   * Child level: script nodes (npm + custom scripts)
+   * Root level: project nodes + "Custom Scripts" node
+   * Project level: npm scripts
+   * Custom Scripts level: categories or scripts
+   * Category level: custom scripts in that category
    */
   getChildren(element?: ScriptItem): ScriptItem[] {
     if (!element) {
-      // Root level: return project nodes
-      return this.getProjectNodes();
+      // Root level: return project nodes + Custom Scripts node
+      const nodes = this.getProjectNodes();
+      
+      // Add Custom Scripts node if there are custom scripts
+      if (this.customScripts.length > 0) {
+        nodes.push({
+          type: 'project',
+          label: 'Custom Scripts',
+          projectPath: '__custom__',
+        });
+      }
+      
+      return nodes;
     }
 
-    // Child level: return scripts for the project
+    // Custom Scripts node - show categories or uncategorized scripts
+    if (element.projectPath === '__custom__') {
+      return this.getCustomScriptNodes();
+    }
+
+    // Category node - show scripts in that category
+    if (element.type === 'category') {
+      return this.getScriptsForCategory(element.category || '');
+    }
+
+    // Project node - show npm scripts only
     if (element.type === 'project') {
-      return this.getScriptNodesForProject(element.projectPath || '');
+      return this.getNpmScriptNodesForProject(element.projectPath || '');
     }
 
     // Scripts don't have children
@@ -93,6 +116,10 @@ export class ScriptListProvider implements vscode.TreeDataProvider<ScriptItem> {
   getTreeItem(element: ScriptItem): vscode.TreeItem {
     if (element.type === 'project') {
       return this.createProjectTreeItem(element);
+    }
+
+    if (element.type === 'category') {
+      return this.createCategoryTreeItem(element);
     }
 
     return this.createScriptTreeItem(element);
@@ -245,20 +272,15 @@ export class ScriptListProvider implements vscode.TreeDataProvider<ScriptItem> {
   // ============================================================================
 
   /**
-   * Get project nodes for root level
+   * Get project nodes for root level (npm scripts only, not custom scripts)
    * Requirements: 1.5, 7.1
    */
   private getProjectNodes(): ScriptItem[] {
     const projectPaths = new Set<string>();
 
-    // Collect all project paths from npm scripts
+    // Collect all project paths from npm scripts only
     for (const projectPath of this.scriptCollection.projects.keys()) {
       projectPaths.add(projectPath);
-    }
-
-    // Collect project paths from custom scripts
-    for (const customScript of this.customScripts) {
-      projectPaths.add(customScript.projectPath);
     }
 
     // Create project nodes
@@ -274,10 +296,10 @@ export class ScriptListProvider implements vscode.TreeDataProvider<ScriptItem> {
   }
 
   /**
-   * Get script nodes for a specific project
+   * Get npm script nodes for a specific project (npm scripts only)
    * Requirements: 1.2, 5.1, 7.1
    */
-  private getScriptNodesForProject(projectPath: string): ScriptItem[] {
+  private getNpmScriptNodesForProject(projectPath: string): ScriptItem[] {
     const scripts: ScriptItem[] = [];
 
     // Add npm scripts from package.json
@@ -302,12 +324,45 @@ export class ScriptListProvider implements vscode.TreeDataProvider<ScriptItem> {
       }
     }
 
-    // Add custom scripts for this project
-    const customScriptsForProject = this.customScripts.filter(
-      (cs) => cs.projectPath === projectPath
-    );
-    
-    for (const customScript of customScriptsForProject) {
+    // Sort scripts alphabetically
+    scripts.sort((a, b) => a.label.localeCompare(b.label));
+
+    return scripts;
+  }
+
+  /**
+   * Get custom script nodes organized by categories
+   */
+  private getCustomScriptNodes(): ScriptItem[] {
+    const nodes: ScriptItem[] = [];
+    const categorized: Map<string, CustomScript[]> = new Map();
+    const uncategorized: CustomScript[] = [];
+
+    // Group custom scripts by category
+    for (const customScript of this.customScripts) {
+      if (customScript.category && customScript.category.trim()) {
+        const category = customScript.category.trim();
+        if (!categorized.has(category)) {
+          categorized.set(category, []);
+        }
+        categorized.get(category)!.push(customScript);
+      } else {
+        uncategorized.push(customScript);
+      }
+    }
+
+    // Add category nodes (sorted)
+    const sortedCategories = Array.from(categorized.keys()).sort();
+    for (const category of sortedCategories) {
+      nodes.push({
+        type: 'category',
+        label: category,
+        category,
+      });
+    }
+
+    // Add uncategorized scripts directly
+    for (const customScript of uncategorized) {
       const scriptItem: ScriptItem = {
         type: 'custom-script',
         label: customScript.name,
@@ -316,14 +371,43 @@ export class ScriptListProvider implements vscode.TreeDataProvider<ScriptItem> {
         id: customScript.id,
       };
       
-      // Add last execution timestamp if available
       const scriptId = generateScriptId(scriptItem);
       const lastExecuted = this.lastExecutionTimes.get(scriptId);
       if (lastExecuted) {
         scriptItem.lastExecuted = lastExecuted;
       }
 
-      scripts.push(scriptItem);
+      nodes.push(scriptItem);
+    }
+
+    return nodes;
+  }
+
+  /**
+   * Get scripts for a specific category
+   */
+  private getScriptsForCategory(category: string): ScriptItem[] {
+    const scripts: ScriptItem[] = [];
+
+    for (const customScript of this.customScripts) {
+      if (customScript.category === category) {
+        const scriptItem: ScriptItem = {
+          type: 'custom-script',
+          label: customScript.name,
+          command: customScript.command,
+          projectPath: customScript.projectPath,
+          category: customScript.category,
+          id: customScript.id,
+        };
+        
+        const scriptId = generateScriptId(scriptItem);
+        const lastExecuted = this.lastExecutionTimes.get(scriptId);
+        if (lastExecuted) {
+          scriptItem.lastExecuted = lastExecuted;
+        }
+
+        scripts.push(scriptItem);
+      }
     }
 
     // Sort scripts alphabetically
@@ -337,7 +421,26 @@ export class ScriptListProvider implements vscode.TreeDataProvider<ScriptItem> {
    * Requirements: 1.5, 7.7
    */
   private createProjectTreeItem(element: ScriptItem): vscode.TreeItem {
-    const projectCount = this.getScriptNodesForProject(element.projectPath || '').length;
+    let projectCount: number;
+    
+    // Special handling for Custom Scripts node
+    if (element.projectPath === '__custom__') {
+      projectCount = this.customScripts.length;
+      const treeItem = new vscode.TreeItem(
+        element.label,
+        vscode.TreeItemCollapsibleState.Expanded
+      );
+      treeItem.description = `${projectCount} script${projectCount !== 1 ? 's' : ''}`;
+      treeItem.iconPath = new vscode.ThemeIcon(
+        'file-code',
+        new vscode.ThemeColor('charts.purple')
+      );
+      treeItem.contextValue = 'custom-scripts-container';
+      return treeItem;
+    }
+    
+    // Regular project node
+    projectCount = this.getNpmScriptNodesForProject(element.projectPath || '').length;
     const treeItem = new vscode.TreeItem(
       element.label,
       vscode.TreeItemCollapsibleState.Collapsed
@@ -358,6 +461,26 @@ export class ScriptListProvider implements vscode.TreeDataProvider<ScriptItem> {
     } else {
       treeItem.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
     }
+
+    return treeItem;
+  }
+
+  /**
+   * Create TreeItem for category node
+   */
+  private createCategoryTreeItem(element: ScriptItem): vscode.TreeItem {
+    const categoryScripts = this.getScriptsForCategory(element.category || '');
+    const treeItem = new vscode.TreeItem(
+      element.label,
+      vscode.TreeItemCollapsibleState.Expanded
+    );
+
+    treeItem.description = `${categoryScripts.length} script${categoryScripts.length !== 1 ? 's' : ''}`;
+    treeItem.iconPath = new vscode.ThemeIcon(
+      'folder',
+      new vscode.ThemeColor('charts.orange')
+    );
+    treeItem.contextValue = 'category';
 
     return treeItem;
   }

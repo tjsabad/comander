@@ -49,13 +49,15 @@ export interface ParseError {
  */
 export interface ScriptItem {
   /** Type of script item */
-  type: 'project' | 'npm-script' | 'custom-script';
+  type: 'project' | 'npm-script' | 'custom-script' | 'category';
   /** Display label */
   label: string;
   /** Command to execute (for script types) */
   command?: string;
   /** Project path (relative from workspace root) */
   projectPath?: string;
+  /** Category name (for organizing scripts) */
+  category?: string;
   /** Last execution timestamp */
   lastExecuted?: Date;
   /** Icon path or theme icon */
@@ -80,6 +82,8 @@ export interface CustomScript {
   command: string;
   /** Project path (relative from workspace root) */
   projectPath: string;
+  /** Category for organizing scripts (optional, max 50 characters) */
+  category?: string;
   /** Creation timestamp */
   createdAt: Date;
   /** Last update timestamp */
@@ -94,6 +98,7 @@ export interface CustomScriptSerialized {
   name: string;
   command: string;
   projectPath: string;
+  category?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -240,7 +245,8 @@ export interface ICustomScriptManager {
   create(
     name: string,
     command: string,
-    projectPath: string
+    projectPath: string,
+    category?: string
   ): Promise<Result<CustomScript>>;
 
   /**
@@ -249,7 +255,8 @@ export interface ICustomScriptManager {
   update(
     id: string,
     name: string,
-    command: string
+    command: string,
+    category?: string
   ): Promise<Result<CustomScript>>;
 
   /**

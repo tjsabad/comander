@@ -349,6 +349,22 @@ export async function activate(context: vscode.ExtensionContext) {
         return; // User cancelled
       }
 
+      // Prompt for category (optional)
+      const category = await vscode.window.showInputBox({
+        prompt: 'Enter category (optional)',
+        placeHolder: 'Category name (max 50 characters, press Enter to skip)',
+        validateInput: (value) => {
+          if (value && value.length > 50) {
+            return 'Category must be 50 characters or less';
+          }
+          return null;
+        },
+      });
+
+      if (category === undefined) {
+        return; // User cancelled
+      }
+
       // Get workspace root for project path
       const workspaceFolders = vscode.workspace.workspaceFolders;
       const projectPath = workspaceFolders ? '' : '';
@@ -357,7 +373,8 @@ export async function activate(context: vscode.ExtensionContext) {
       const result = await customScriptManager.create(
         name,
         command,
-        projectPath
+        projectPath,
+        category.trim().length > 0 ? category : undefined
       );
 
       if (result.success) {
@@ -438,11 +455,29 @@ export async function activate(context: vscode.ExtensionContext) {
         return; // User cancelled
       }
 
+      // Prompt for category (optional)
+      const category = await vscode.window.showInputBox({
+        prompt: 'Edit category (optional)',
+        placeHolder: 'Category name (max 50 characters, press Enter to skip)',
+        value: existingScript.category || '',
+        validateInput: (value) => {
+          if (value && value.length > 50) {
+            return 'Category must be 50 characters or less';
+          }
+          return null;
+        },
+      });
+
+      if (category === undefined) {
+        return; // User cancelled
+      }
+
       // Update the custom script
       const result = await customScriptManager.update(
         scriptItem.id,
         name,
-        command
+        command,
+        category.trim().length > 0 ? category : undefined
       );
 
       if (result.success) {

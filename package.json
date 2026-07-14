@@ -195,6 +195,9 @@
               "projectPath": {
                 "type": "string"
               },
+              "category": {
+                "type": "string"
+              },
               "createdAt": {
                 "type": "string"
               },
