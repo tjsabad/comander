@@ -4,6 +4,10 @@
   "description": "Enhance your Node.js development workflow with intuitive npm script management",
   "version": "0.1.0",
   "publisher": "comander",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tjsabad/comander.git"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
