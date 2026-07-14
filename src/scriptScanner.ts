@@ -18,8 +18,8 @@ export class ScriptScanner implements IScriptScanner {
   private readonly debounceDelay = 500; // 500ms debounce
 
   /**
-   * Scan workspace for all package.json files and extract scripts
-   * Excludes node_modules directories
+   * Scan workspace for package.json files, excluding hidden and node_modules directories
+   * Excludes: node_modules, .git, .vscode, and any directory starting with .
    */
   async scan(workspaceRoot: string): Promise<ScriptCollection> {
     const collection: ScriptCollection = {
@@ -28,10 +28,10 @@ export class ScriptScanner implements IScriptScanner {
     };
 
     try {
-      // Find all package.json files, excluding node_modules
+      // Find all package.json files, excluding node_modules and hidden directories
       const packageJsonFiles = await vscode.workspace.findFiles(
         '**/package.json',
-        '**/node_modules/**'
+        '{**/node_modules/**,**/.*/**}'  // Exclude node_modules and hidden directories
       );
 
       // Parse each package.json file
@@ -58,11 +58,11 @@ export class ScriptScanner implements IScriptScanner {
   }
 
   /**
-   * Watch for changes to package.json files and trigger callback
+   * Watch for changes to package.json files, excluding hidden and node_modules directories
    * Implements 500ms debounce to avoid excessive re-scans
    */
   watch(callback: (scripts: ScriptCollection) => void): vscode.Disposable {
-    // Create file system watcher for package.json files
+    // Create file system watcher for package.json files, excluding hidden directories
     const watcher = vscode.workspace.createFileSystemWatcher(
       '**/package.json'
     );

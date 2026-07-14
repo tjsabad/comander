@@ -206,6 +206,7 @@ export class SettingsManager implements ISettingsManager {
         name,
         command,
         projectPath,
+        category,
         createdAt,
         updatedAt,
       } = script as Record<string, unknown>;
@@ -226,13 +227,23 @@ export class SettingsManager implements ISettingsManager {
         continue;
       }
 
+      // Validate optional category field
+      if (category !== undefined && typeof category !== 'string') {
+        console.warn(
+          `Removing corrupted custom script: invalid category type - ${id}`
+        );
+        needsRepair = true;
+        continue;
+      }
+
       // Validate field constraints
       if (
         id.trim().length === 0 ||
         name.trim().length === 0 ||
         name.length > 100 ||
         command.trim().length === 0 ||
-        command.length > 500
+        command.length > 500 ||
+        (category && category.length > 50)
       ) {
         console.warn(
           `Removing corrupted custom script: constraint violation - ${id}`
@@ -253,14 +264,21 @@ export class SettingsManager implements ISettingsManager {
       }
 
       // Script is valid, keep it
-      repairedScripts.push({
+      const validScript: CustomScriptSerialized = {
         id,
         name,
         command,
         projectPath,
         createdAt,
         updatedAt,
-      });
+      };
+      
+      // Include category if present
+      if (category && typeof category === 'string') {
+        validScript.category = category;
+      }
+      
+      repairedScripts.push(validScript);
     }
 
     // Check for duplicate IDs and remove them

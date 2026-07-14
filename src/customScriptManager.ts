@@ -17,16 +17,17 @@ export class CustomScriptManager implements ICustomScriptManager {
 
   /**
    * Create a new custom script with validation
-   * Validates: name uniqueness, length limits, non-empty checks
+   * Validates: name uniqueness, length limits, non-empty checks, category
    * Requirements: 4.1, 4.2, 4.3, 4.7, 4.9
    */
   async create(
     name: string,
     command: string,
-    projectPath: string
+    projectPath: string,
+    category?: string
   ): Promise<Result<CustomScript>> {
     // Validate input
-    const validation = this.validateInput(name, command);
+    const validation = this.validateInput(name, command, category);
     if (!validation.success) {
       return validation;
     }
@@ -58,6 +59,7 @@ export class CustomScriptManager implements ICustomScriptManager {
       name: name.trim(),
       command: command.trim(),
       projectPath,
+      category: category?.trim(),
       createdAt: now,
       updatedAt: now,
     };
@@ -77,16 +79,17 @@ export class CustomScriptManager implements ICustomScriptManager {
 
   /**
    * Update an existing custom script with validation
-   * Validates: name uniqueness, length limits, non-empty checks
+   * Validates: name uniqueness, length limits, non-empty checks, category
    * Requirements: 5.4, 5.5, 5.6, 5.7, 5.8, 5.9
    */
   async update(
     id: string,
     name: string,
-    command: string
+    command: string,
+    category?: string
   ): Promise<Result<CustomScript>> {
     // Validate input
-    const validation = this.validateInput(name, command);
+    const validation = this.validateInput(name, command, category);
     if (!validation.success) {
       return validation;
     }
@@ -118,6 +121,7 @@ export class CustomScriptManager implements ICustomScriptManager {
       ...existingScript,
       name: name.trim(),
       command: command.trim(),
+      category: category?.trim(),
       updatedAt: new Date(),
     };
 
@@ -187,13 +191,14 @@ export class CustomScriptManager implements ICustomScriptManager {
   }
 
   /**
-   * Validate custom script name and command
+   * Validate custom script name, command, and category
    * Checks for empty/whitespace-only strings and length limits
    * Requirements: 4.2, 4.3, 5.6, 5.7, 5.8, 5.9
    */
   private validateInput(
     name: string,
-    command: string
+    command: string,
+    category?: string
   ): Result<never> {
     // Validate name is not empty or whitespace
     if (!name || name.trim().length === 0) {
@@ -224,6 +229,14 @@ export class CustomScriptManager implements ICustomScriptManager {
       return {
         success: false,
         error: `Command must be ${MAX_COMMAND_LENGTH} characters or less`,
+      };
+    }
+
+    // Validate category length if provided
+    if (category && category.trim().length > 50) {
+      return {
+        success: false,
+        error: 'Category must be 50 characters or less',
       };
     }
 
