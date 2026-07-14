@@ -1,0 +1,269 @@
+{
+  "name": "comander",
+  "displayName": "Comander",
+  "description": "Enhance your Node.js development workflow with intuitive npm script management",
+  "version": "0.1.0",
+  "publisher": "comander",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "comander",
+          "title": "Comander",
+          "icon": "resources/comander-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "comander": [
+        {
+          "id": "comanderScripts",
+          "name": "Scripts"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "comander.refresh",
+        "title": "Refresh Scripts",
+        "category": "Comander",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "comander.executeScript",
+        "title": "Execute Script",
+        "category": "Comander",
+        "icon": "$(play)"
+      },
+      {
+        "command": "comander.addCustomScript",
+        "title": "Add Custom Script",
+        "category": "Comander",
+        "icon": "$(add)"
+      },
+      {
+        "command": "comander.editCustomScript",
+        "title": "Edit Custom Script",
+        "category": "Comander",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "comander.deleteCustomScript",
+        "title": "Delete Custom Script",
+        "category": "Comander",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "comander.toggleBulkMode",
+        "title": "Toggle Bulk Execution Mode",
+        "category": "Comander",
+        "icon": "$(checklist)"
+      },
+      {
+        "command": "comander.reorderBulkScripts",
+        "title": "Reorder Selected Scripts",
+        "category": "Comander",
+        "icon": "$(arrow-swap)"
+      },
+      {
+        "command": "comander.executeBulk",
+        "title": "Start Bulk Execution",
+        "category": "Comander",
+        "icon": "$(run-all)"
+      },
+      {
+        "command": "comander.saveBulkSequence",
+        "title": "Save Bulk Sequence",
+        "category": "Comander",
+        "icon": "$(save)"
+      },
+      {
+        "command": "comander.loadBulkSequence",
+        "title": "Load Bulk Sequence",
+        "category": "Comander",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "comander.executeRecent",
+        "title": "Execute Most Recent Script",
+        "category": "Comander"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "comander.executeRecent",
+        "key": "ctrl+shift+r",
+        "mac": "cmd+shift+r",
+        "when": "editorTextFocus"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "comander.refresh",
+          "when": "view == comanderScripts",
+          "group": "navigation@1"
+        },
+        {
+          "command": "comander.addCustomScript",
+          "when": "view == comanderScripts",
+          "group": "navigation@2"
+        },
+        {
+          "command": "comander.toggleBulkMode",
+          "when": "view == comanderScripts",
+          "group": "navigation@3"
+        },
+        {
+          "command": "comander.reorderBulkScripts",
+          "when": "view == comanderScripts && comander.bulkModeEnabled && comander.hasSelectedScripts",
+          "group": "bulk@1"
+        },
+        {
+          "command": "comander.executeBulk",
+          "when": "view == comanderScripts && comander.bulkModeEnabled && comander.hasSelectedScripts",
+          "group": "bulk@2"
+        },
+        {
+          "command": "comander.saveBulkSequence",
+          "when": "view == comanderScripts && comander.bulkModeEnabled && comander.hasSelectedScripts",
+          "group": "bulk@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "comander.executeScript",
+          "when": "view == comanderScripts && viewItem =~ /script/",
+          "group": "inline@1"
+        },
+        {
+          "command": "comander.editCustomScript",
+          "when": "view == comanderScripts && viewItem == custom-script",
+          "group": "inline@2"
+        },
+        {
+          "command": "comander.deleteCustomScript",
+          "when": "view == comanderScripts && viewItem == custom-script",
+          "group": "inline@3"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Comander",
+      "properties": {
+        "comander.scriptParameters": {
+          "type": "object",
+          "description": "Saved parameters for scripts",
+          "default": {},
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "comander.customScripts": {
+          "type": "array",
+          "description": "Custom user-defined scripts",
+          "default": [],
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "command": {
+                "type": "string"
+              },
+              "projectPath": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "string"
+              }
+            },
+            "required": ["id", "name", "command", "projectPath", "createdAt", "updatedAt"]
+          }
+        },
+        "comander.bulkSequences": {
+          "type": "array",
+          "description": "Saved bulk execution sequences",
+          "default": [],
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "scriptIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "order": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              "createdAt": {
+                "type": "string"
+              }
+            },
+            "required": ["id", "name", "scriptIds", "order", "createdAt"]
+          }
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile",
+    "test": "node ./out/test/runTest.js",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/chai": "^4.3.11",
+    "@types/glob": "^8.1.0",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^20.10.6",
+    "@types/sinon": "^17.0.2",
+    "@types/uuid": "^9.0.7",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.17.0",
+    "@typescript-eslint/parser": "^6.17.0",
+    "@vscode/test-electron": "^2.3.8",
+    "chai": "^4.3.10",
+    "eslint": "^8.56.0",
+    "fast-check": "^3.15.0",
+    "glob": "^10.3.10",
+    "mocha": "^10.2.0",
+    "sinon": "^17.0.1",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "uuid": "^9.0.1"
+  }
+}

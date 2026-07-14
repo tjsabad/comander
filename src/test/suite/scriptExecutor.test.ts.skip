@@ -1,0 +1,210 @@
+/**
+ * Unit tests for ScriptExecutor
+ * Task 5.1 implementation tests
+ */
+
+import { expect, assert } from 'chai';
+import * as sinon from 'sinon';
+import { ScriptExecutor } from '../../scriptExecutor';
+import { ScriptItem } from '../../types';
+import { generateScriptId } from '../../utils';
+
+describe('ScriptExecutor', () => {
+  let executor: ScriptExecutor;
+  let sandbox: sinon.SinonSandbox;
+
+  beforeEach(() => {
+    executor = new ScriptExecutor();
+    sandbox = sinon.createSandbox();
+  });
+
+  afterEach(() => {
+    sandbox.restore();
+  });
+
+  describe('Command Construction', () => {
+    it('should construct npm command without parameters', () => {
+      const script: ScriptItem = {
+        type: 'npm-script',
+        label: 'build',
+        command: 'tsc',
+        projectPath: '',
+      };
+
+      // Access private method through reflection for testing
+      const command = (executor as any).constructCommand(script);
+      expect(command).to.equal('npm run build');
+    });
+
+    it('should construct npm command with parameters using double-dash separator', () => {
+      const script: ScriptItem = {
+        type: 'npm-script',
+        label: 'test',
+        command: 'mocha',
+        projectPath: '',
+      };
+
+      const command = (executor as any).constructCommand(script, '--grep "specific test"');
+      expect(command).to.equal('npm run test -- --grep "specific test"');
+    });
+
+    it('should not add double-dash for empty parameters', () => {
+      const script: ScriptItem = {
+        type: 'npm-script',
+        label: 'lint',
+        command: 'eslint',
+        projectPath: '',
+      };
+
+      const command = (executor as any).constructCommand(script, '');
+      expect(command).to.equal('npm run lint');
+    });
+
+    it('should not add double-dash for whitespace-only parameters', () => {
+      const script: ScriptItem = {
+        type: 'npm-script',
+        label: 'lint',
+        command: 'eslint',
+        projectPath: '',
+      };
+
+      const command = (executor as any).constructCommand(script, '   ');
+      expect(command).to.equal('npm run lint');
+    });
+
+    it('should use command directly for custom scripts without parameters', () => {
+      const script: ScriptItem = {
+        type: 'custom-script',
+        label: 'deploy',
+        command: 'ssh user@server deploy.sh',
+        projectPath: '',
+      };
+
+      const command = (executor as any).constructCommand(script);
+      expect(command).to.equal('ssh user@server deploy.sh');
+    });
+
+    it('should append parameters to custom script command', () => {
+      const script: ScriptItem = {
+        type: 'custom-script',
+        label: 'deploy',
+        command: 'ssh user@server deploy.sh',
+        projectPath: '',
+      };
+
+      const command = (executor as any).constructCommand(script, '--env production');
+      expect(command).to.equal('ssh user@server deploy.sh --env production');
+    });
+  });
+
+  describe('Execution State Tracking', () => {
+    it('should return false for non-executing script', () => {
+      const scriptId = ':npm:build';
+      expect(executor.isExecuting(scriptId)).to.be.false;
+    });
+
+    it('should track executing scripts', () => {
+      const script: ScriptItem = {
+        type: 'npm-script',
+        label: 'build',
+        command: 'tsc',
+        projectPath: '',
+      };
+
+      const scriptId = generateScriptId(script);
+
+      // Initially not executing
+      expect(executor.isExecuting(scriptId)).to.be.false;
+
+      // After adding to active executions, should be executing
+      const mockTerminal = {} as any;
+      (executor as any).activeExecutions.set(scriptId, {
+        terminal: mockTerminal,
+        script,
+        startTime: Date.now(),
+      });
+
+      expect(executor.isExecuting(scriptId)).to.be.true;
+    });
+  });
+
+  describe('Most Recent Script', () => {
+    it('should return null when no script has been executed', () => {
+      expect(executor.getMostRecentScript()).to.be.null;
+    });
+
+    it('should store most recent script after execution tracking', () => {
+      const script: ScriptItem = {
+        type: 'npm-script',
+        label: 'test',
+        command: 'mocha',
+        projectPath: '',
+      };
+
+      // Simulate storing the most recent script
+      (executor as any).mostRecentScript = script;
+
+      const recent = executor.getMostRecentScript();
+      expect(recent).to.equal(script);
+      expect(recent?.label).to.equal('test');
+    });
+
+    it('should update most recent script on subsequent executions', () => {
+      const script1: ScriptItem = {
+        type: 'npm-script',
+        label: 'build',
+        command: 'tsc',
+        projectPath: '',
+      };
+
+      const script2: ScriptItem = {
+        type: 'npm-script',
+        label: 'test',
+        command: 'mocha',
+        projectPath: '',
+      };
+
+      (executor as any).mostRecentScript = script1;
+      expect(executor.getMostRecentScript()?.label).to.equal('build');
+
+      (executor as any).mostRecentScript = script2;
+      expect(executor.getMostRecentScript()?.label).to.equal('test');
+    });
+  });
+
+  describe('Terminate', () => {
+    it('should remove script from active executions on terminate', () => {
+      const script: ScriptItem = {
+        type: 'npm-script',
+        label: 'build',
+        command: 'tsc',
+        projectPath: '',
+      };
+
+      const scriptId = generateScriptId(script);
+      const mockTerminal = { dispose: sinon.stub() } as any;
+
+      (executor as any).activeExecutions.set(scriptId, {
+        terminal: mockTerminal,
+        script,
+        startTime: Date.now(),
+      });
+
+      assert.strictEqual(executor.isExecuting(scriptId), true);
+
+      executor.terminate(scriptId);
+
+      assert.strictEqual(executor.isExecuting(scriptId), false);
+      assert.strictEqual(mockTerminal.dispose.calledOnce, true);
+    });
+
+    test('should handle terminating non-existent script gracefully', () => {
+      const scriptId = ':npm:nonexistent';
+
+      // Should not throw
+      assert.doesNotThrow(() => {
+        executor.terminate(scriptId);
+      });
+    });
+  });
+});
