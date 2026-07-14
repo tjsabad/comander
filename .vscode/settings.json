@@ -1,3 +1,13 @@
 {
-    "comander.customScripts": []
+    "comander.customScripts": [
+        {
+            "id": "3b224c83-0d17-48c1-b215-69dc8cdfe8af",
+            "name": "test",
+            "command": "test",
+            "projectPath": "",
+            "category": "test",
+            "createdAt": "2026-07-14T21:05:28.192Z",
+            "updatedAt": "2026-07-14T21:05:28.192Z"
+        }
+    ]
 }

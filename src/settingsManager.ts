@@ -602,6 +602,7 @@ export class SettingsManager implements ISettingsManager {
         name: s.name,
         command: s.command,
         projectPath: s.projectPath,
+        category: s.category,
         createdAt: new Date(s.createdAt),
         updatedAt: new Date(s.updatedAt),
       }));
@@ -623,6 +624,7 @@ export class SettingsManager implements ISettingsManager {
         name: s.name,
         command: s.command,
         projectPath: s.projectPath,
+        category: s.category,
         createdAt: s.createdAt.toISOString(),
         updatedAt: s.updatedAt.toISOString(),
       }));

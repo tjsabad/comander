@@ -349,32 +349,91 @@ export async function activate(context: vscode.ExtensionContext) {
         return; // User cancelled
       }
 
-      // Prompt for category (optional)
-      const category = await vscode.window.showInputBox({
-        prompt: 'Enter category (optional)',
-        placeHolder: 'Category name (max 50 characters, press Enter to skip)',
-        validateInput: (value) => {
-          if (value && value.length > 50) {
-            return 'Category must be 50 characters or less';
-          }
-          return null;
-        },
-      });
-
-      if (category === undefined) {
-        return; // User cancelled
+      // Get workspace folders to scan and update scripts FIRST
+      const workspaceFolders = vscode.workspace.workspaceFolders;
+      const workspaceRoot = workspaceFolders ? workspaceFolders[0].uri.fsPath : '';
+      
+      // Update script list provider with latest custom scripts BEFORE showing dropdown
+      if (workspaceRoot) {
+        const scriptCollection = await scriptScanner.scan(workspaceRoot);
+        const latestCustomScripts = customScriptManager.list();
+        scriptListProvider.updateScripts(scriptCollection, latestCustomScripts);
       }
 
-      // Get workspace root for project path
-      const workspaceFolders = vscode.workspace.workspaceFolders;
+      // Get existing categories for dropdown (after updating scriptListProvider)
+      const existingCategories = scriptListProvider.getExistingCategories();
+      
+      let category: string | undefined;
+      
+      if (existingCategories.length > 0) {
+        // Show quick pick with existing categories + option to create new
+        const quickPickItems = [
+          { label: '$(add) Create new category...', value: '__new__' },
+          { label: '$(close) No category', value: '' },
+          ...existingCategories.map(cat => ({ label: cat, value: cat }))
+        ];
+        
+        const selected = await vscode.window.showQuickPick(
+          quickPickItems,
+          {
+            placeHolder: 'Select a category or create a new one',
+          }
+        );
+        
+        if (selected === undefined) {
+          return; // User cancelled
+        }
+        
+        if (selected.value === '__new__') {
+          // Prompt for new category name
+          const newCategory = await vscode.window.showInputBox({
+            prompt: 'Enter new category name',
+            placeHolder: 'Category name (max 50 characters)',
+            validateInput: (value) => {
+              if (value && value.length > 50) {
+                return 'Category must be 50 characters or less';
+              }
+              return null;
+            },
+          });
+          
+          if (newCategory === undefined) {
+            return; // User cancelled
+          }
+          
+          category = newCategory.trim().length > 0 ? newCategory.trim() : undefined;
+        } else {
+          category = selected.value.length > 0 ? selected.value : undefined;
+        }
+      } else {
+        // No existing categories, prompt for category (optional)
+        const categoryInput = await vscode.window.showInputBox({
+          prompt: 'Enter category name (optional)',
+          placeHolder: 'Category name (max 50 characters, press Enter to skip)',
+          validateInput: (value) => {
+            if (value && value.length > 50) {
+              return 'Category must be 50 characters or less';
+            }
+            return null;
+          },
+        });
+
+        if (categoryInput === undefined) {
+          return; // User cancelled
+        }
+        
+        category = categoryInput.trim().length > 0 ? categoryInput.trim() : undefined;
+      }
+
+      // Get workspace root for project path (reuse from above)
       const projectPath = workspaceFolders ? '' : '';
 
-      // Create the custom script
+      // Create the custom script with category
       const result = await customScriptManager.create(
         name,
         command,
         projectPath,
-        category.trim().length > 0 ? category : undefined
+        category
       );
 
       if (result.success) {
@@ -455,29 +514,88 @@ export async function activate(context: vscode.ExtensionContext) {
         return; // User cancelled
       }
 
-      // Prompt for category (optional)
-      const category = await vscode.window.showInputBox({
-        prompt: 'Edit category (optional)',
-        placeHolder: 'Category name (max 50 characters, press Enter to skip)',
-        value: existingScript.category || '',
-        validateInput: (value) => {
-          if (value && value.length > 50) {
-            return 'Category must be 50 characters or less';
-          }
-          return null;
-        },
-      });
-
-      if (category === undefined) {
-        return; // User cancelled
+      // Get workspace folders to scan and update scripts FIRST
+      const workspaceFolders = vscode.workspace.workspaceFolders;
+      const workspaceRoot = workspaceFolders ? workspaceFolders[0].uri.fsPath : '';
+      
+      // Update script list provider with latest custom scripts BEFORE showing dropdown
+      if (workspaceRoot) {
+        const scriptCollection = await scriptScanner.scan(workspaceRoot);
+        const latestCustomScripts = customScriptManager.list();
+        scriptListProvider.updateScripts(scriptCollection, latestCustomScripts);
       }
 
-      // Update the custom script
+      // Get existing categories for dropdown (after updating scriptListProvider)
+      const existingCategories = scriptListProvider.getExistingCategories();
+      
+      let category: string | undefined;
+      
+      if (existingCategories.length > 0) {
+        // Show quick pick with existing categories + option to create new
+        const quickPickItems = [
+          { label: '$(add) Create new category...', value: '__new__' },
+          { label: '$(close) No category', value: '' },
+          ...existingCategories.map(cat => ({ label: cat, value: cat }))
+        ];
+        
+        const selected = await vscode.window.showQuickPick(
+          quickPickItems,
+          {
+            placeHolder: 'Select a category or create a new one',
+          }
+        );
+        
+        if (selected === undefined) {
+          return; // User cancelled
+        }
+        
+        if (selected.value === '__new__') {
+          // Prompt for new category name
+          const newCategory = await vscode.window.showInputBox({
+            prompt: 'Enter new category name',
+            placeHolder: 'Category name (max 50 characters)',
+            validateInput: (value) => {
+              if (value && value.length > 50) {
+                return 'Category must be 50 characters or less';
+              }
+              return null;
+            },
+          });
+          
+          if (newCategory === undefined) {
+            return; // User cancelled
+          }
+          
+          category = newCategory.trim().length > 0 ? newCategory.trim() : undefined;
+        } else {
+          category = selected.value.length > 0 ? selected.value : undefined;
+        }
+      } else {
+        // No existing categories, prompt for category (optional)
+        const categoryInput = await vscode.window.showInputBox({
+          prompt: 'Enter category name (optional)',
+          placeHolder: 'Category name (max 50 characters, press Enter to skip)',
+          validateInput: (value) => {
+            if (value && value.length > 50) {
+              return 'Category must be 50 characters or less';
+            }
+            return null;
+          },
+        });
+
+        if (categoryInput === undefined) {
+          return; // User cancelled
+        }
+        
+        category = categoryInput.trim().length > 0 ? categoryInput.trim() : undefined;
+      }
+
+      // Update the custom script with category
       const result = await customScriptManager.update(
         scriptItem.id,
         name,
         command,
-        category.trim().length > 0 ? category : undefined
+        category
       );
 
       if (result.success) {
@@ -485,13 +603,12 @@ export async function activate(context: vscode.ExtensionContext) {
           `Custom script "${name}" updated successfully`
         );
 
-        // Refresh tree view
-        const workspaceFolders = vscode.workspace.workspaceFolders;
-        const workspaceRoot = workspaceFolders
+        // Refresh tree view (reuse workspaceFolders from above)
+        const workspaceRoot2 = workspaceFolders
           ? workspaceFolders[0].uri.fsPath
           : '';
-        if (workspaceRoot) {
-          const scriptCollection = await scriptScanner.scan(workspaceRoot);
+        if (workspaceRoot2) {
+          const scriptCollection = await scriptScanner.scan(workspaceRoot2);
           const customScripts = customScriptManager.list();
           scriptListProvider.updateScripts(scriptCollection, customScripts);
         }
@@ -516,8 +633,7 @@ export async function activate(context: vscode.ExtensionContext) {
       const confirmation = await vscode.window.showWarningMessage(
         `Are you sure you want to delete the custom script "${scriptItem.label}"?`,
         { modal: true },
-        'Delete',
-        'Cancel'
+        'Delete'
       );
 
       if (confirmation !== 'Delete') {

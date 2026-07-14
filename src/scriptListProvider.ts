@@ -75,24 +75,14 @@ export class ScriptListProvider implements vscode.TreeDataProvider<ScriptItem> {
    */
   getChildren(element?: ScriptItem): ScriptItem[] {
     if (!element) {
-      // Root level: return project nodes + Custom Scripts node
+      // Root level: return project nodes (npm scripts) + category nodes (custom scripts)
       const nodes = this.getProjectNodes();
       
-      // Add Custom Scripts node if there are custom scripts
-      if (this.customScripts.length > 0) {
-        nodes.push({
-          type: 'project',
-          label: 'Custom Scripts',
-          projectPath: '__custom__',
-        });
-      }
+      // Add category nodes for custom scripts
+      const categoryNodes = this.getCategoryNodes();
+      nodes.push(...categoryNodes);
       
       return nodes;
-    }
-
-    // Custom Scripts node - show categories or uncategorized scripts
-    if (element.projectPath === '__custom__') {
-      return this.getCustomScriptNodes();
     }
 
     // Category node - show scripts in that category
@@ -283,16 +273,53 @@ export class ScriptListProvider implements vscode.TreeDataProvider<ScriptItem> {
       projectPaths.add(projectPath);
     }
 
-    // Create project nodes
-    const projectNodes: ScriptItem[] = Array.from(projectPaths)
-      .sort()
-      .map((projectPath) => ({
+    // Create project nodes, filtering out those with 0 scripts
+    const projectNodes: ScriptItem[] = [];
+    
+    for (const projectPath of Array.from(projectPaths).sort()) {
+      // Skip projects with no scripts
+      const scripts = this.getNpmScriptNodesForProject(projectPath);
+      if (scripts.length === 0) {
+        continue;
+      }
+
+      // Get package name from package.json
+      const projectScripts = this.scriptCollection.projects.get(projectPath);
+      let label = projectPath || '(root)';
+      
+      if (projectScripts) {
+        const packageName = this.getPackageName(projectScripts.packageJsonPath);
+        if (packageName) {
+          label = packageName;
+        } else if (projectPath) {
+          label = projectPath;
+        } else {
+          label = '(root)';
+        }
+      }
+      
+      projectNodes.push({
         type: 'project' as const,
-        label: projectPath || '(root)',
+        label,
         projectPath,
-      }));
+      });
+    }
 
     return projectNodes;
+  }
+
+  /**
+   * Get package name from package.json file
+   */
+  private getPackageName(packageJsonPath: string): string | null {
+    try {
+      const fs = require('fs');
+      const content = fs.readFileSync(packageJsonPath, 'utf-8');
+      const packageJson = JSON.parse(content);
+      return packageJson.name || null;
+    } catch (error) {
+      return null;
+    }
   }
 
   /**
@@ -331,56 +358,61 @@ export class ScriptListProvider implements vscode.TreeDataProvider<ScriptItem> {
   }
 
   /**
-   * Get custom script nodes organized by categories
+   * Get category nodes - for custom scripts only
    */
-  private getCustomScriptNodes(): ScriptItem[] {
+  private getCategoryNodes(): ScriptItem[] {
     const nodes: ScriptItem[] = [];
     const categorized: Map<string, CustomScript[]> = new Map();
-    const uncategorized: CustomScript[] = [];
 
     // Group custom scripts by category
     for (const customScript of this.customScripts) {
-      if (customScript.category && customScript.category.trim()) {
-        const category = customScript.category.trim();
-        if (!categorized.has(category)) {
-          categorized.set(category, []);
-        }
-        categorized.get(category)!.push(customScript);
-      } else {
-        uncategorized.push(customScript);
-      }
-    }
-
-    // Add category nodes (sorted)
-    const sortedCategories = Array.from(categorized.keys()).sort();
-    for (const category of sortedCategories) {
-      nodes.push({
-        type: 'category',
-        label: category,
-        category,
-      });
-    }
-
-    // Add uncategorized scripts directly
-    for (const customScript of uncategorized) {
-      const scriptItem: ScriptItem = {
-        type: 'custom-script',
-        label: customScript.name,
-        command: customScript.command,
-        projectPath: customScript.projectPath,
-        id: customScript.id,
-      };
+      // Use actual category name, or "Uncategorized" if not set
+      const category = customScript.category && customScript.category.trim() 
+        ? customScript.category.trim() 
+        : 'Uncategorized';
       
-      const scriptId = generateScriptId(scriptItem);
-      const lastExecuted = this.lastExecutionTimes.get(scriptId);
-      if (lastExecuted) {
-        scriptItem.lastExecuted = lastExecuted;
+      if (!categorized.has(category)) {
+        categorized.set(category, []);
       }
+      categorized.get(category)!.push(customScript);
+    }
 
-      nodes.push(scriptItem);
+    // Add category nodes (sorted, with "Uncategorized" last), but only if they have scripts
+    const sortedCategories = Array.from(categorized.keys()).sort((a, b) => {
+      // Put "Uncategorized" at the end
+      if (a === 'Uncategorized') return 1;
+      if (b === 'Uncategorized') return -1;
+      return a.localeCompare(b);
+    });
+    
+    for (const category of sortedCategories) {
+      const scriptsInCategory = categorized.get(category) || [];
+      // Only add category if it has scripts
+      if (scriptsInCategory.length > 0) {
+        nodes.push({
+          type: 'category',
+          label: category,
+          category,
+        });
+      }
     }
 
     return nodes;
+  }
+
+  /**
+   * Get all existing category names (excluding "Uncategorized")
+   */
+  getExistingCategories(): string[] {
+    const categories = new Set<string>();
+    
+    for (const customScript of this.customScripts) {
+      if (customScript.category && customScript.category.trim()) {
+        categories.add(customScript.category.trim());
+      }
+    }
+    
+    return Array.from(categories).sort();
   }
 
   /**
@@ -390,7 +422,12 @@ export class ScriptListProvider implements vscode.TreeDataProvider<ScriptItem> {
     const scripts: ScriptItem[] = [];
 
     for (const customScript of this.customScripts) {
-      if (customScript.category === category) {
+      // Match category, treating empty/missing as "Uncategorized"
+      const scriptCategory = customScript.category && customScript.category.trim() 
+        ? customScript.category.trim() 
+        : 'Uncategorized';
+      
+      if (scriptCategory === category) {
         const scriptItem: ScriptItem = {
           type: 'custom-script',
           label: customScript.name,
@@ -421,26 +458,7 @@ export class ScriptListProvider implements vscode.TreeDataProvider<ScriptItem> {
    * Requirements: 1.5, 7.7
    */
   private createProjectTreeItem(element: ScriptItem): vscode.TreeItem {
-    let projectCount: number;
-    
-    // Special handling for Custom Scripts node
-    if (element.projectPath === '__custom__') {
-      projectCount = this.customScripts.length;
-      const treeItem = new vscode.TreeItem(
-        element.label,
-        vscode.TreeItemCollapsibleState.Expanded
-      );
-      treeItem.description = `${projectCount} script${projectCount !== 1 ? 's' : ''}`;
-      treeItem.iconPath = new vscode.ThemeIcon(
-        'file-code',
-        new vscode.ThemeColor('charts.purple')
-      );
-      treeItem.contextValue = 'custom-scripts-container';
-      return treeItem;
-    }
-    
-    // Regular project node
-    projectCount = this.getNpmScriptNodesForProject(element.projectPath || '').length;
+    const projectCount = this.getNpmScriptNodesForProject(element.projectPath || '').length;
     const treeItem = new vscode.TreeItem(
       element.label,
       vscode.TreeItemCollapsibleState.Collapsed
