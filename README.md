@@ -28,6 +28,34 @@ This extension contributes the following settings:
 
 - `Ctrl+Shift+R` (Mac: `Cmd+Shift+R`): Execute most recent script
 
+## Installation
+
+### From VSIX Package
+
+1. Download the `.vsix` file from releases
+2. Open VS Code
+3. Go to Extensions view (`Ctrl+Shift+X` or `Cmd+Shift+X`)
+4. Click the `...` menu at the top of the Extensions view
+5. Select "Install from VSIX..."
+6. Choose the downloaded `.vsix` file
+
+### From Source
+
+```bash
+# Clone the repository
+git clone https://github.com/comander/comander-vscode.git
+cd comander-vscode
+
+# Install dependencies
+npm install
+
+# Package the extension
+npx vsce package
+
+# Install the generated .vsix file
+code --install-extension comander-0.1.0.vsix
+```
+
 ## Development
 
 ### Setup
@@ -60,6 +88,27 @@ npm test
 npm run lint
 ```
 
+## Packaging for Distribution
+
+To create a `.vsix` package for distribution:
+
+```bash
+# Install vsce if not already installed
+npm install -g @vscode/vsce
+
+# Package the extension
+npx vsce package
+```
+
+This will create a `comander-0.1.0.vsix` file that can be shared and installed.
+
+### Requirements for Packaging
+
+- All TypeScript files must compile without errors
+- LICENSE file must be present (MIT license included)
+- README.md with features and installation instructions
+- Valid repository field in package.json
+
 ## License
 
-MIT
+MIT - See LICENSE file for details
